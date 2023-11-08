@@ -1,6 +1,7 @@
 ﻿using Elasticsearch.API.DTOs;
 using Elasticsearch.API.Models;
 using Elasticsearch.API.Repositories;
+using Nest;
 using System.Collections.Immutable;
 using System.Net;
 
@@ -9,10 +10,12 @@ namespace Elasticsearch.API.Services
     public class ProductService
     {
         private readonly ProductRepository _productRepository;
+        private readonly ILogger<ProductService> _logger;
 
-        public ProductService(ProductRepository productRepository)
+        public ProductService(ProductRepository productRepository, ILogger<ProductService> logger)
         {
             _productRepository = productRepository;
+            _logger = logger;
         }
         public async Task<ResponseDto<ProductDto>> SaveAsync(ProductCreateDto request)
         {
@@ -70,6 +73,27 @@ namespace Elasticsearch.API.Services
                 return ResponseDto<bool>.Fail(new List<string> { "An error occurred while updating" },
                     System.Net.HttpStatusCode.InternalServerError);
             }
+            return ResponseDto<bool>.Success(true, HttpStatusCode.NoContent);
+        }
+
+        public async Task<ResponseDto<bool>> DeleteAsync(string id)
+        {
+            var deleteResponse = await _productRepository.DeleteAsync(id);
+
+            if(deleteResponse.IsValid && deleteResponse.Result == Result.NotFound)
+            {
+                return ResponseDto<bool>.Fail(new List<string> { "The product you want to delete could not be found." },
+                    System.Net.HttpStatusCode.NotFound);
+            }
+
+            if(!deleteResponse.IsValid)
+            {
+                _logger.LogError(deleteResponse.OriginalException, deleteResponse.ServerError.Error.ToString());
+
+                return ResponseDto<bool>.Fail(new List<string> { "An error occurred while deleting" },
+                    System.Net.HttpStatusCode.InternalServerError);
+            }
+
             return ResponseDto<bool>.Success(true, HttpStatusCode.NoContent);
         }
 
